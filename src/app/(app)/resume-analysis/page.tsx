@@ -20,7 +20,7 @@ export default function ResumeAnalysisPage() {
       <Card className="max-w-4xl mx-auto">
         <CardHeader>
             <CardTitle className="font-headline">Analyze Your Resume</CardTitle>
-            <CardDescription>Upload a .pdf, .doc, or .docx file (max 5MB).</CardDescription>
+            <CardDescription>Upload a .pdf file (max 5MB).</CardDescription>
         </CardHeader>
         <ResumeAnalysisClient />
       </Card>

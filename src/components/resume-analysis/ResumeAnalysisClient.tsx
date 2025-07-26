@@ -12,7 +12,7 @@ import { Loader2, Wand2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ACCEPTED_FILE_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+const ACCEPTED_FILE_TYPES = ['application/pdf'];
 
 const formSchema = z.object({
   resume: z
@@ -21,7 +21,7 @@ const formSchema = z.object({
     .refine((files) => files?.[0]?.size <= MAX_FILE_SIZE, `Max file size is 5MB.`)
     .refine(
       (files) => ACCEPTED_FILE_TYPES.includes(files?.[0]?.type),
-      '.pdf, .doc, and .docx files are accepted.'
+      'Only .pdf files are accepted.'
     ),
 });
 
