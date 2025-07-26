@@ -4,12 +4,11 @@ import { usePathname } from 'next/navigation';
 import { Logo } from './Logo';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navLinks = [
-  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/', label: 'Dashboard' },
   { href: '/resume-analysis', label: 'Resume Analysis' },
   { href: '/job-matching', label: 'Job Matching' },
   { href: '/faq', label: 'FAQ' },
@@ -21,7 +20,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 max-w-screen-2xl items-center justify-between">
-        <Link href="/dashboard" className="mr-6 flex items-center space-x-2">
+        <Link href="/" className="mr-6 flex items-center space-x-2">
           <Logo />
         </Link>
         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
@@ -31,7 +30,7 @@ export default function Navbar() {
               href={link.href}
               className={cn(
                 'transition-colors hover:text-foreground/80',
-                pathname.startsWith(link.href) ? 'text-foreground' : 'text-foreground/60'
+                pathname === link.href ? 'text-foreground' : 'text-foreground/60'
               )}
             >
               {link.label}
@@ -39,10 +38,6 @@ export default function Navbar() {
           ))}
         </nav>
         <div className="flex items-center gap-4">
-          <Avatar>
-            <AvatarImage src="https://placehold.co/40x40" />
-            <AvatarFallback>U</AvatarFallback>
-          </Avatar>
           <div className="md:hidden">
             <Sheet>
               <SheetTrigger asChild>
