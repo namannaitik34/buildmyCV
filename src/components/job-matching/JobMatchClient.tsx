@@ -13,7 +13,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '../ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fileToText, fileToDataUri } from '@/lib/file-utils';
-
+import jsPDF from 'jspdf';
+import { Eye } from 'lucide-react';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_FILE_TYPES = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
@@ -91,18 +92,29 @@ export function JobMatchClient() {
     }
   };
 
-  const handleDownload = () => {
-    if (result?.updatedResume) {
-      const blob = new Blob([result.updatedResume], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'updated-resume.txt';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+  const generatePdf = (text: string, action: 'download' | 'preview') => {
+    const doc = new jsPDF();
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 10;
+    const lines = doc.splitTextToSize(text, doc.internal.pageSize.width - margin * 2);
+    let cursor = margin;
+
+    lines.forEach((line: string) => {
+      if (cursor > pageHeight - margin) {
+        doc.addPage();
+        cursor = margin;
+      }
+      doc.text(line, margin, cursor);
+      cursor += 7; // line height
+    });
+
+    if (action === 'download') {
+      doc.save('updated-resume.pdf');
+    } else {
+      window.open(doc.output('bloburl'), '_blank');
     }
   };
+
 
   return (
     <>
@@ -194,10 +206,16 @@ export function JobMatchClient() {
               <CardHeader>
                 <div className="flex justify-between items-center">
                     <CardTitle className="font-headline flex items-center gap-2"><Lightbulb/> Results</CardTitle>
-                    <Button onClick={handleDownload} variant="outline" size="sm">
-                        <Download className="mr-2 h-4 w-4" />
-                        Download Updated Resume
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button onClick={() => generatePdf(result.updatedResume, 'preview')} variant="outline" size="sm">
+                            <Eye className="mr-2 h-4 w-4" />
+                            Preview PDF
+                        </Button>
+                        <Button onClick={() => generatePdf(result.updatedResume, 'download')} variant="outline" size="sm">
+                            <Download className="mr-2 h-4 w-4" />
+                            Download PDF
+                        </Button>
+                    </div>
                 </div>
               </CardHeader>
               <CardContent className="grid md:grid-cols-2 gap-8">

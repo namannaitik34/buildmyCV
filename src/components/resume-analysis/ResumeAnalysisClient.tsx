@@ -8,13 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Wand2, Download } from 'lucide-react';
+import { Loader2, Wand2, Download, Eye } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ReactMarkdown from 'react-markdown';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { fileToDataUri } from '@/lib/file-utils';
 import { Textarea } from '../ui/textarea';
 import { ATSScoreGauge } from '../dashboard/ATSScoreGauge';
+import jsPDF from 'jspdf';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_FILE_TYPES = ['application/pdf'];
@@ -73,16 +74,26 @@ export function ResumeAnalysisClient() {
     }
   };
 
-  const handleDownload = () => {
-    if (result?.updatedResume) {
-      const blob = new Blob([result.updatedResume], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'updated-resume.txt';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+  const generatePdf = (text: string, action: 'download' | 'preview') => {
+    const doc = new jsPDF();
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 10;
+    const lines = doc.splitTextToSize(text, doc.internal.pageSize.width - margin * 2);
+    let cursor = margin;
+
+    lines.forEach((line: string) => {
+      if (cursor > pageHeight - margin) {
+        doc.addPage();
+        cursor = margin;
+      }
+      doc.text(line, margin, cursor);
+      cursor += 7; // line height
+    });
+
+    if (action === 'download') {
+      doc.save('updated-resume.pdf');
+    } else {
+      window.open(doc.output('bloburl'), '_blank');
     }
   };
 
@@ -154,10 +165,16 @@ export function ResumeAnalysisClient() {
                          <CardHeader>
                             <div className="flex justify-between items-center">
                                 <CardTitle className="font-headline flex items-center gap-2"><Wand2 size={20}/> Analysis Report</CardTitle>
-                                <Button onClick={handleDownload} variant="outline" size="sm">
-                                    <Download className="mr-2 h-4 w-4" />
-                                    Download Updated Resume
-                                </Button>
+                                <div className="flex gap-2">
+                                  <Button onClick={() => generatePdf(result.updatedResume, 'preview')} variant="outline" size="sm">
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      Preview PDF
+                                  </Button>
+                                  <Button onClick={() => generatePdf(result.updatedResume, 'download')} variant="outline" size="sm">
+                                      <Download className="mr-2 h-4 w-4" />
+                                      Download PDF
+                                  </Button>
+                                </div>
                             </div>
                         </CardHeader>
                         <CardContent>
