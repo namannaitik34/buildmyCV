@@ -38,15 +38,33 @@ const prompt = ai.definePrompt({
   name: 'generateUpdatedResumePrompt',
   input: {schema: GenerateUpdatedResumeInputSchema},
   output: {schema: GenerateUpdatedResumeOutputSchema},
-  prompt: `You are an expert career consultant and resume writer. Analyze the provided resume against the given job description.
-
-Your task is to:
-1. Calculate an Applicant Tracking System (ATS) score representing the match between the resume and the job description. The score should be a whole number between 0 and 100.
-2. Provide a detailed analysis report in Markdown format. The report should be written in simple, easy-to-understand language. It should highlight strengths, weaknesses, and areas for improvement, focusing on keywords, skills, and experience alignment with the job description.
-3. Rewrite and optimize the entire resume to better align with the job description, incorporating your suggestions. Ensure the output is only the text of the updated resume.
+  prompt: `As an expert resume writer, analyze the resume against the job description.
+1.  Calculate an ATS score (0-100).
+2.  Provide a detailed analysis report in simple Markdown, highlighting strengths and areas for improvement.
+3.  Rewrite the resume to align with the job description.
 
 Resume: {{media url=resumeDataUri}}
 Job Description: {{{jobDescription}}}`,
+  config: {
+    safetySettings: [
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_ONLY_HIGH',
+      },
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_MEDIUM_AND_ABOVE',
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'BLOCK_LOW_AND_ABOVE',
+      },
+    ],
+  },
 });
 
 const generateUpdatedResumeFlow = ai.defineFlow(

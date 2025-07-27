@@ -35,9 +35,9 @@ const prompt = ai.definePrompt({
   name: 'matchJobsPrompt',
   input: {schema: MatchJobsInputSchema},
   output: {schema: MatchJobsOutputSchema},
-  prompt: `You are an expert resume optimization consultant. Given a job description and a resume, do the following:
-1. Provide specific, actionable suggestions (at least 3) on how to improve the resume to better match the job description. Focus on keywords, skills, and experience.
-2. Rewrite the entire resume, incorporating the suggestions to create an optimized version that is tailored for the job description.
+  prompt: `As an expert resume consultant, given a job description and a resume, do the following:
+1. Provide at least 3 specific, actionable suggestions to improve the resume.
+2. Rewrite the entire resume, incorporating the suggestions to tailor it for the job description.
 
 Job Description:
 {{{jobDescription}}}
