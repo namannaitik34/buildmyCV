@@ -33,7 +33,7 @@ const prompt = ai.definePrompt({
   name: 'analyzeResumePrompt',
   input: {schema: AnalyzeResumeInputSchema},
   output: {schema: AnalyzeResumeOutputSchema},
-  prompt: `You are an AI resume expert. Analyze the resume provided and generate a report highlighting areas for improvement, such as missing keywords or weak sections.
+  prompt: `You are an AI resume expert. Analyze the resume provided and generate a report highlighting areas for improvement, such as missing keywords or weak sections. Please format the report using markdown for better readability and use simple, easy-to-understand language suitable for someone who is not an HR expert.
 
 Resume: {{media url=resumeDataUri}}`,
 });
