@@ -5,35 +5,84 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { matchJobs } from '@/ai/flows/match-jobs';
 import { Button } from '@/components/ui/button';
-import { CardContent, CardFooter, Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { CardContent, CardFooter, Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Loader2, Lightbulb, CheckCircle } from 'lucide-react';
+import { Loader2, Lightbulb, CheckCircle, Download, FileUp } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Input } from '../ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fileToText, fileToDataUri } from '@/lib/file-utils';
+
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const ACCEPTED_FILE_TYPES = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+
 
 const formSchema = z.object({
-  resumeText: z.string().min(100, 'Resume text must be at least 100 characters.'),
+  resumeText: z.string().optional(),
   jobDescription: z.string().min(50, 'Job description must be at least 50 characters.'),
+  resumeFile: z.any().optional(),
+}).refine(data => (data.resumeText && data.resumeText.length >= 100) || data.resumeFile?.length === 1, {
+  message: 'Please either paste your resume (min 100 chars) or upload a file.',
+  path: ['resumeText'],
+}).refine(data => {
+    if (data.resumeFile && data.resumeFile.length === 1) {
+        return data.resumeFile?.[0]?.size <= MAX_FILE_SIZE;
+    }
+    return true;
+    }, {
+        message: `Max file size is 5MB.`,
+        path: ['resumeFile'],
+    }
+).refine(data => {
+    if (data.resumeFile && data.resumeFile.length === 1) {
+        return ACCEPTED_FILE_TYPES.includes(data.resumeFile?.[0]?.type);
+    }
+    return true;
+}, {
+    message: 'Only .pdf, .docx, and .txt files are accepted.',
+    path: ['resumeFile'],
 });
+
 
 type FormValues = z.infer<typeof formSchema>;
 
+interface Result {
+    suggestions: string[];
+    updatedResume: string;
+}
+
 export function JobMatchClient() {
   const [isLoading, setIsLoading] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[] | null>(null);
+  const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, formState: { errors }, watch } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
   });
+
+  const resumeFile = watch('resumeFile');
 
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsLoading(true);
     setError(null);
-    setSuggestions(null);
+    setResult(null);
     try {
-      const result = await matchJobs({ resumeText: data.resumeText, jobDescription: data.jobDescription });
-      setSuggestions(result.suggestions);
+      let resumeText = data.resumeText;
+      if (data.resumeFile && data.resumeFile.length > 0) {
+        const file = data.resumeFile[0];
+        resumeText = await fileToText(file);
+      }
+
+      if (!resumeText) {
+        setError('Could not extract text from the resume.');
+        setIsLoading(false);
+        return;
+      }
+
+      const matchResult = await matchJobs({ resumeText, jobDescription: data.jobDescription });
+      setResult(matchResult);
     } catch (err) {
       console.error(err);
       setError('An error occurred while generating suggestions. Please try again.');
@@ -42,22 +91,65 @@ export function JobMatchClient() {
     }
   };
 
+  const handleDownload = () => {
+    if (result?.updatedResume) {
+      const blob = new Blob([result.updatedResume], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'updated-resume.txt';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   return (
     <>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="resumeText">Your Resume Text</Label>
-            <Textarea
-              id="resumeText"
-              placeholder="Paste the full text of your resume here..."
-              className="min-h-[200px]"
-              {...register('resumeText')}
-            />
-            {errors.resumeText && (
-              <p className="text-sm text-destructive">{errors.resumeText.message}</p>
-            )}
-          </div>
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <CardContent className="space-y-6">
+            <Tabs defaultValue="paste" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="paste">Paste Resume</TabsTrigger>
+                <TabsTrigger value="upload">Upload Resume</TabsTrigger>
+              </TabsList>
+              <TabsContent value="paste">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Paste Resume</CardTitle>
+                        <CardDescription>Paste the plain text of your resume below.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        <Label htmlFor="resumeText" className="sr-only">Your Resume Text</Label>
+                        <Textarea
+                        id="resumeText"
+                        placeholder="Paste the full text of your resume here..."
+                        className="min-h-[200px]"
+                        {...register('resumeText')}
+                        />
+                        {errors.resumeText && (
+                        <p className="text-sm text-destructive">{errors.resumeText.message}</p>
+                        )}
+                    </CardContent>
+                </Card>
+              </TabsContent>
+              <TabsContent value="upload">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Upload Resume</CardTitle>
+                        <CardDescription>Upload your resume as a .pdf, .docx, or .txt file (max 5MB).</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        <Label htmlFor="resumeFile" className="sr-only">Your Resume File</Label>
+                        <Input id="resumeFile" type="file" {...register('resumeFile')} />
+                        {errors.resumeFile && (
+                        <p className="text-sm text-destructive">{errors.resumeFile.message as string}</p>
+                        )}
+                    </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          
           <div className="space-y-2">
             <Label htmlFor="jobDescription">Job Description</Label>
             <Textarea
@@ -70,19 +162,21 @@ export function JobMatchClient() {
               <p className="text-sm text-destructive">{errors.jobDescription.message}</p>
             )}
           </div>
-          <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
-            {isLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Lightbulb className="mr-2 h-4 w-4" />
-            )}
-            Get Suggestions
-          </Button>
-        </form>
-      </CardContent>
+          </CardContent>
+          <CardFooter>
+            <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
+                {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                <Lightbulb className="mr-2 h-4 w-4" />
+                )}
+                Get Suggestions
+            </Button>
+          </CardFooter>
+      </form>
 
-      {(isLoading || suggestions || error) && (
-        <CardFooter className="flex flex-col items-start space-y-4">
+      {(isLoading || result || error) && (
+        <CardContent className="flex flex-col items-start space-y-4">
           {isLoading && (
             <div className="flex items-center text-muted-foreground w-full">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -95,24 +189,41 @@ export function JobMatchClient() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          {suggestions && (
+          {result && (
             <Card className="w-full bg-secondary/50">
               <CardHeader>
-                <CardTitle className="font-headline flex items-center gap-2"><Lightbulb/> Optimization Suggestions</CardTitle>
+                <div className="flex justify-between items-center">
+                    <CardTitle className="font-headline flex items-center gap-2"><Lightbulb/> Results</CardTitle>
+                    <Button onClick={handleDownload} variant="outline" size="sm">
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Updated Resume
+                    </Button>
+                </div>
               </CardHeader>
-              <CardContent>
-                <ul className="space-y-3">
-                  {suggestions.map((suggestion, index) => (
-                    <li key={index} className="flex items-start gap-3">
-                      <CheckCircle className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
-                      <span className="text-sm">{suggestion}</span>
-                    </li>
-                  ))}
-                </ul>
+              <CardContent className="grid md:grid-cols-2 gap-8">
+                <div>
+                    <h3 className="font-semibold mb-2 text-lg">Optimization Suggestions</h3>
+                    <ul className="space-y-3">
+                    {result.suggestions.map((suggestion, index) => (
+                        <li key={index} className="flex items-start gap-3">
+                        <CheckCircle className="h-5 w-5 text-accent flex-shrink-0 mt-1" />
+                        <span className="text-sm">{suggestion}</span>
+                        </li>
+                    ))}
+                    </ul>
+                </div>
+                <div>
+                    <h3 className="font-semibold mb-2 text-lg">Updated Resume</h3>
+                    <Textarea
+                        readOnly
+                        value={result.updatedResume}
+                        className="min-h-[300px] bg-background"
+                        />
+                </div>
               </CardContent>
             </Card>
           )}
-        </CardFooter>
+        </CardContent>
       )}
     </>
   );

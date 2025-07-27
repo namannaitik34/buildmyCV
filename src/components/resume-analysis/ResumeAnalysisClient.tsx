@@ -3,15 +3,18 @@ import { useState } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { analyzeResume } from '@/ai/flows/analyze-resume';
+import { generateUpdatedResume } from '@/ai/flows/generate-updated-resume';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Wand2 } from 'lucide-react';
+import { Loader2, Wand2, Download } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import ReactMarkdown from 'react-markdown';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { fileToDataUri } from '@/lib/file-utils';
+import { Textarea } from '../ui/textarea';
+import { ATSScoreGauge } from '../dashboard/ATSScoreGauge';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_FILE_TYPES = ['application/pdf'];
@@ -25,13 +28,20 @@ const formSchema = z.object({
       (files) => ACCEPTED_FILE_TYPES.includes(files?.[0]?.type),
       'Only .pdf files are accepted.'
     ),
+  jobDescription: z.string().min(50, 'Job description must be at least 50 characters.'),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
+interface AnalysisResult {
+  atsScore: number;
+  analysisReport: string;
+  updatedResume: string;
+}
+
 export function ResumeAnalysisClient() {
   const [isLoading, setIsLoading] = useState(false);
-  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resumeDataUri, setResumeDataUri] = useState<string | null>(null);
 
@@ -39,27 +49,22 @@ export function ResumeAnalysisClient() {
     resolver: zodResolver(formSchema),
   });
 
-  const fileToDataUri = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsLoading(true);
     setError(null);
-    setAnalysis(null);
+    setResult(null);
     setResumeDataUri(null);
 
     try {
       const file = data.resume[0];
       const dataUri = await fileToDataUri(file);
       setResumeDataUri(dataUri);
-      const result = await analyzeResume({ resumeDataUri: dataUri });
-      setAnalysis(result.analysisReport);
+
+      const analysisResult = await generateUpdatedResume({ 
+        resumeDataUri: dataUri,
+        jobDescription: data.jobDescription,
+      });
+      setResult(analysisResult);
     } catch (err) {
       console.error(err);
       setError('An error occurred during analysis. Please try again.');
@@ -68,10 +73,23 @@ export function ResumeAnalysisClient() {
     }
   };
 
+  const handleDownload = () => {
+    if (result?.updatedResume) {
+      const blob = new Blob([result.updatedResume], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'updated-resume.txt';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   return (
     <>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="resume">Resume File</Label>
             <Input id="resume" type="file" {...register('resume')} />
@@ -79,6 +97,20 @@ export function ResumeAnalysisClient() {
               <p className="text-sm text-destructive">{errors.resume.message as string}</p>
             )}
           </div>
+           <div className="space-y-2">
+            <Label htmlFor="jobDescription">Job Description</Label>
+            <Textarea
+              id="jobDescription"
+              placeholder="Paste the job description here..."
+              className="min-h-[150px]"
+              {...register('jobDescription')}
+            />
+            {errors.jobDescription && (
+              <p className="text-sm text-destructive">{errors.jobDescription.message}</p>
+            )}
+          </div>
+        </CardContent>
+        <CardFooter>
           <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
             {isLoading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -87,8 +119,8 @@ export function ResumeAnalysisClient() {
             )}
             Analyze Now
           </Button>
-        </form>
-      </CardContent>
+        </CardFooter>
+      </form>
 
       {(isLoading || error) && (
         <CardFooter>
@@ -107,8 +139,37 @@ export function ResumeAnalysisClient() {
         </CardFooter>
         )}
         
-        {analysis && resumeDataUri && !isLoading && (
+        {result && resumeDataUri && !isLoading && (
             <CardContent className="mt-6">
+                 <div className="grid md:grid-cols-3 gap-8 mb-8">
+                    <Card className="col-span-1">
+                        <CardHeader>
+                            <CardTitle className="font-headline">Live ATS Score</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex items-center justify-center">
+                            <ATSScoreGauge score={result.atsScore} />
+                        </CardContent>
+                    </Card>
+                    <Card className="col-span-2">
+                         <CardHeader>
+                            <div className="flex justify-between items-center">
+                                <CardTitle className="font-headline flex items-center gap-2"><Wand2 size={20}/> Analysis Report</CardTitle>
+                                <Button onClick={handleDownload} variant="outline" size="sm">
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Download Updated Resume
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <ScrollArea className="h-[250px] border rounded-lg p-4 bg-secondary/30">
+                                <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none">
+                                    {result.analysisReport}
+                                </ReactMarkdown>
+                            </ScrollArea>
+                        </CardContent>
+                    </Card>
+                 </div>
+                 
                 <div className="grid md:grid-cols-2 gap-8">
                     <div>
                         <h2 className="text-xl font-bold font-headline mb-4">Your Resume</h2>
@@ -117,10 +178,10 @@ export function ResumeAnalysisClient() {
                         </div>
                     </div>
                     <div>
-                        <h2 className="text-xl font-bold font-headline mb-4 flex items-center gap-2"><Wand2 size={20}/> Analysis Report</h2>
+                        <h2 className="text-xl font-bold font-headline mb-4 flex items-center gap-2">Optimized Resume</h2>
                         <ScrollArea className="h-[600px] border rounded-lg p-4 bg-secondary/30">
                             <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none">
-                                {analysis}
+                                {result.updatedResume}
                             </ReactMarkdown>
                         </ScrollArea>
                     </div>

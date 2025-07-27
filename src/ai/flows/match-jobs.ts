@@ -23,6 +23,7 @@ const MatchJobsOutputSchema = z.object({
   suggestions: z
     .array(z.string())
     .describe('A list of suggestions to optimize the resume.'),
+  updatedResume: z.string().describe('The full text of the optimized resume.'),
 });
 export type MatchJobsOutput = z.infer<typeof MatchJobsOutputSchema>;
 
@@ -34,14 +35,15 @@ const prompt = ai.definePrompt({
   name: 'matchJobsPrompt',
   input: {schema: MatchJobsInputSchema},
   output: {schema: MatchJobsOutputSchema},
-  prompt: `You are an expert resume optimization consultant. Given a job description and a resume, provide specific suggestions on how to improve the resume to better match the job description. Focus on keywords, skills, and experience mentioned in the job description that are missing or could be better emphasized in the resume.
+  prompt: `You are an expert resume optimization consultant. Given a job description and a resume, do the following:
+1. Provide specific, actionable suggestions (at least 3) on how to improve the resume to better match the job description. Focus on keywords, skills, and experience.
+2. Rewrite the entire resume, incorporating the suggestions to create an optimized version that is tailored for the job description.
 
-Job Description: {{{jobDescription}}}
+Job Description:
+{{{jobDescription}}}
 
 Resume:
 {{{resumeText}}}
-
-Suggestions (at least 3):
 `,config: {
     safetySettings: [
       {

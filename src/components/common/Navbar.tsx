@@ -11,7 +11,6 @@ const navLinks = [
   { href: '/', label: 'Dashboard' },
   { href: '/resume-analysis', label: 'Resume Analysis' },
   { href: '/job-matching', label: 'Job Matching' },
-  { href: '/faq', label: 'FAQ' },
 ];
 
 export default function Navbar() {
